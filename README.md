@@ -1,3 +1,3 @@
 # Idea Project
 
-Mini projectM, Angular JS and MongoDB
+Mini project, Angular JS and MongoDB
