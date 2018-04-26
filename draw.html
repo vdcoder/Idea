@@ -1,0 +1,32 @@
+<div ng-controller="drawCtrl">
+        <div class="whiteBar">
+          <div class="makeDrawCloseAndLabel">
+            <small class="closeButton"><a href="/" class="closeButtonLink">x</a></small> <b>Make a draw</b>
+          </div>
+        </div>
+        <div class="barShadow">
+        </div>
+        <div class="emptySpace">
+          <center>
+              <div class="box2">
+                  <div class="amount">
+                    <small class="colorGreen">Amount</small> 
+                    <small class="colorRed">*</small>
+                  </div>
+                  <div class="dollar">
+                    <big>$</big>
+                  </div>
+                  <div class="inputDiv">
+                    <input type="text" ng-model="drawAmount" class="inputNoBorder"/>
+                  </div>
+                  <div class="greenLine">
+                  </div>  
+                  <div  ng-click="submitADraw()" class="submitButton">
+                     <div class="submitButtonLabel">
+                        <b>SUBMIT</b>
+                     </div>
+                  </div>
+              </div>
+          </center>  
+        </div>
+</div>
