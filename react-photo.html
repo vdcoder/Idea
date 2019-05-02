@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8" />
+    <title>Welcome</title>
+    <script crossorigin src="https://unpkg.com/react@16/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@16/umd/react-dom.development.js"></script>
+    <script crossorigin src="https://unpkg.com/babel-standalone@6.15.0/babel.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-router-dom/umd/react-router-dom.js"></script>
+
+    <!-- Example Component Counter, With State -->
+    <script type="text/babel">
+        // Every component state-change is handled here, a full new state object must be returned, or the same "state" parameter as it is the prev state
+        function CounterReducer(state, action) {
+            switch (action.type) {
+                case 'increment':
+                    return {count: state.count + 1};
+                case 'decrement':
+                    return {count: state.count - 1};
+                case 'reset':
+                    return {count: 0};
+                default:
+                    throw new Error();
+            }
+        }
+
+        // Return dynamic Html, with data bindings and event handlers
+        function CounterComponent(props) {
+            const [state, dispatch] = React.useReducer(CounterReducer, {count: 0});
+            return (
+                <React.Fragment>
+                    {props.someParameter}
+                    <br />
+                    Count: {state.count}
+                    <button onClick={() =>
+                        dispatch({type: 'reset'})}>
+                        Reset
+                    </button>
+                    <button onClick={() => dispatch({type: 'increment'})}>+</button>
+                    <button onClick={() => dispatch({type: 'decrement'})}>-</button>
+                </React.Fragment>
+              );
+        }
+    </script>
+
+    <!-- Example Component Home -->
+    <script type="text/babel">
+        // Return dynamic Html, with data bindings and event handlers
+        function HomeComponent() {
+            return (
+                <React.Fragment>
+                    <h1>Home Component</h1>
+                    <hr />
+                    <nav>
+                        <ul>
+                            <li><ReactRouterDOM.Link to="/">Home</ReactRouterDOM.Link></li>
+                            <li><ReactRouterDOM.Link to="/counter/">Counter</ReactRouterDOM.Link></li>
+                        </ul>
+                    </nav>
+                    <br/>
+                    Let also have the counter component on the home page to show composition
+                    <br/>
+                    <CounterComponent/>
+                    <br />
+                </React.Fragment>
+            );
+        }
+    </script>
+
+    <!-- Example Component Router -->
+    <script type="text/babel">
+        function RouterComponent() {
+            return (
+                <ReactRouterDOM.BrowserRouter>
+                    <ReactRouterDOM.Route path="/" exact component={HomeComponent} />
+                    <ReactRouterDOM.Route path="/counter/" component={CounterComponent} />
+                </ReactRouterDOM.BrowserRouter>
+            );
+        }
+    </script>
+</head>
+<body>
+    <!-- React dynamic insert element -->
+    <div id="root"></div>
+
+    <!-- Render setup -->
+    <script type="text/babel">
+        ReactDOM.render(
+            <RouterComponent/>,
+            document.getElementById('root')
+        );
+    </script>
+</body>
+</html>
