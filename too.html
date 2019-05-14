@@ -1,0 +1,1138 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8" />
+    <title>Welcome</title>
+    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.8.2/css/all.css" integrity="sha384-oS3vJWv+0UjzBfQzYUhtDYW+Pj2yciDJxpsK1OYPAYjqT085Qq/1cq5FLXAZQ7Ay" crossorigin="anonymous">
+    <style type="text/css" media="screen">
+        .toc_width25 {
+            display: inline-block;
+            width: 25px
+        }
+        .toc_width50 {
+            display: inline-block;
+            width: 50px
+        }
+        .toc_width100 {
+            display:inline-block;
+            width:100px
+        }
+        .toc_width200 {
+            display: inline-block;
+            width: 200px
+        }
+        .toc_width300 {
+            display: inline-block;
+            width: 300px
+        }
+    </style>
+
+    <script crossorigin src="https://unpkg.com/react@16/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@16/umd/react-dom.development.js"></script>
+    <script crossorigin src="https://unpkg.com/babel-standalone@6.15.0/babel.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-router-dom/umd/react-router-dom.js"></script>
+
+    <script type="text/babel">
+        function Round2(v)
+        { return Math.round(v * 100) / 100; }
+    </script>
+    
+    <script type="text/babel">
+        function StateMakeNewArgs(tabIndex, fn)
+        {
+            return {
+                home:
+                {
+                    tabIndex:tabIndex
+                },
+                scriptList:
+                {
+                    scripts:[]
+                },
+                script:
+                {
+                    index:0
+                },
+                cmd:
+                {
+                    index:0
+                },
+                pathList:
+                {
+                    paths:[]
+                },
+                path:
+                {
+                    POINT_SIDE:4,
+                    CAPTION_OFFSET:2,
+                    CLOSE_DIST_SQR: 0.5 * 0.5,
+                    CANVAS_SIDE: 1000,
+                    index:0,
+                    bShowPoints:true,
+                    nPickForMove:-1,
+                    nPickForDelta:-1,
+                    nScale:1000/50,
+                    drag:[0,0],
+                    bIsDragging:false,
+                    
+                },
+                file:
+                {
+                    fileName:fn,
+                    hasUnsavedChanges:false
+                }
+            };
+        }
+
+        var iniState = StateMakeNewArgs(0, "");
+
+        function StateMakeNew(fn)
+        {
+            return StateMakeNewArgs(0, fn);
+        }
+
+        function StateMakeOpen(fn, str)
+        {
+            return StateMakeImport(StateMakeNewArgs(0, fn), fn, str);
+        }
+
+        function StateMakeImport(state, fn, str)
+        {
+            var newState = Object.assign({}, state);
+
+            if (str != "")
+            {
+                var blocks = str.split(";");
+                for (var i = 0; i < blocks.length; i++)
+                {
+                    // Get terms of block
+                    var terms = [];
+                    var lines = blocks[i].split(/\r?\n/);
+                    for (var j = 0; j < lines.length; j++)
+                    {
+                        var termsTemp = lines[j].split(" ");
+                        for (var k = 0; k < termsTemp.length; k++)
+                            if (termsTemp != "")
+                                terms.push(termsTemp[k]);
+                    }
+                    
+                    // Add block
+                    var items = terms[0].split(",");
+                    if (items[0] == "path")
+                    {
+                        var pathName = items[1];
+                        var n = parseInt(items[2]);
+                        var pathPoints = [];
+                        for (var j = 0; j < n; j++)
+                            pathPoints.push({x:parseFloat(items[3 + j * 4]), y:parseFloat(items[3 + j * 4 + 1]), xd:parseFloat(items[3 + j * 4 + 2]), yd:parseFloat(items[3 + j * 4 + 3]) });  
+                        newState.pathList.paths.push({name:pathName, points:pathPoints});
+                    }
+                    else // script
+                    {
+                        var scriptName = items[1];
+                        var scriptCmds = [];
+                        for (var j = 1; j < terms.length; j++)
+                            scriptCmds.push(terms[j].split(","));
+                        newState.scriptList.scripts.push({name:scriptName, cmds:scriptCmds});
+                    }
+                }
+            }
+            return newState;
+        }
+
+        function Serialize(state)
+        {
+            var s = "";
+            for (var i = 0; i < state.pathList.paths.length; i++) // paths
+            {
+                var path = state.pathList.paths[i];
+                var block = "path," + path.name + "," + path.points.length;
+                for (var j = 0; j < path.points.length; j++)
+                    block += "," + path.points[j].x + "," + path.points[j].y + "," + path.points[j].xd + "," + path.points[j].yd;
+                s += (s == "" ? "" : ";") + block;
+            }
+            for (var i = 0; i < state.scriptList.scripts.length; i++) // scripts     
+            {
+                var script = state.scriptList.scripts[i];
+                var block = "script," + script.name;
+                for (var j = 0; j < script.cmds.length; j++)
+                {
+                    block += " ";
+                    for (var k = 0; k < script.cmds[j].length; k++)
+                        block += (k > 0 ? "," : "") + script.cmds[j][k];
+                }
+                s += (s == "" ? "" : ";") + block;
+            }
+            
+            return s;   
+        }
+
+        function Reducer(state, action) {
+            var reducedState = state;
+            switch (action.type) {
+                case 'home_tab_activate':
+                    {
+                        var newHome = { ...state.home, tabIndex: action.index };
+                        reducedState = { ...state, home: newHome };
+                    } break;
+                case 'file_new':
+                    reducedState = StateMakeNew(action.fn); break;
+                case 'file_open':
+                    reducedState = StateMakeOpen(action.fn, action.str); break;
+                case 'file_save':
+                    {
+                        var newFile = { ...state.file, hasUnsavedChanges: false };
+                        reducedState = { ...state, file: newFile };
+                    }  break;
+                case 'file_import':
+                    reducedState = StateMakeImport(state, action.fn, action.str); break;
+                case 'scripts_new':
+                    {
+                        var newState = Object.assign({}, state);
+                        newState.scriptList.scripts.push({name:action.sn, cmds:[]});
+                        reducedState = newState;
+                    } break;
+                case 'scripts_open':
+                    {
+                        var newState = Object.assign({}, state);
+                        newState.home.tabIndex = 1;
+                        newState.script.index = action.index;
+                        reducedState = newState;
+                    } break;
+                case 'scripts_rename':
+                    {
+                        var newState = Object.assign({}, state);
+                        newState.scriptList.scripts[action.index].name = action.sn;
+                        reducedState = newState;
+                    } break;
+                case 'scripts_del':
+                    {
+                        var newState = Object.assign({}, state);
+                        newState.scriptList.scripts.splice(action.index, 1);
+                        reducedState = newState;
+                    } break;
+                case 'scripts_dup':
+                    {
+                        var fromScript = state.scriptList.scripts[action.index];
+                        var dupScript = {name: action.sn, cmds:[]};
+                        for (var i = 0; i < fromScript.cmds.length; i++)
+                        {
+                            dupScript.cmds.push([]);
+                            for (var j = 0; j < fromScript.cmds[i].length; j++) 
+                                dupScript.cmds[i].push(fromScript.cmds[i][j]);
+                        }
+                        var newState = Object.assign({}, state); 
+                        if (action.index == newState.scriptList.scripts.length - 1)
+                            newState.scriptList.scripts.push(dupScript);
+                        else
+                            newState.scriptList.scripts.splice(action.index + 1, 0, dupScript);
+
+
+                        reducedState = newState;
+                    } break;
+                case 'scripts_swap':
+                        if (action.index > 0)
+                        {
+                            var tempScript = state.scriptList.scripts[action.index];
+                            state.scriptList.scripts[action.index] = state.scriptList.scripts[action.index - 1];
+                            state.scriptList.scripts[action.index - 1] = tempScript;
+                            reducedState = Object.assign({}, state); 
+                        }
+                case 'paths_new':
+                    {
+                        var newState = Object.assign({}, state);
+                        newState.pathList.paths.push({name:action.pn, bShowPreview:false, points:[]});
+                        reducedState = newState;
+                    } break;
+                case 'paths_open':
+                    {
+                        var newState = Object.assign({}, state);
+                        newState.path.index = action.index;
+                        reducedState = newState;
+                    } break;
+                case 'paths_rename':
+                    {
+                        var newState = Object.assign({}, state);
+                        newState.pathList.paths[action.index].name = action.pn;
+                        reducedState = newState;
+                    } break;
+                case 'paths_del':
+                    {
+                        var newState = Object.assign({}, state);
+                        newState.pathList.paths.splice(action.index, 1);
+                        reducedState = newState;
+                    } break;
+                case 'paths_dup':
+                    {
+                        var fromPath = state.pathList.paths[action.index];
+                        var dupPath = {name: action.pn, bShowPreview:false, points:[]};
+                        for (var i = 0; i < fromPath.points.length; i++)
+                            dupPath.points.push({x:fromPath.points[i].x, y:fromPath.points[i].y, xd:fromPath.points[i].xd, yd:fromPath.points[i].yd});
+                        var newState = Object.assign({}, state);
+                        if (action.index == newState.pathList.paths.length - 1)
+                            newState.pathList.paths.push(dupPath);
+                        else
+                            newState.pathList.paths.splice(action.index + 1, 0, dupPath);
+                        reducedState = newState;
+                    } break; 
+                case 'paths_preview':
+                    {
+                        state.pathList.paths[action.index].bShowPreview = !state.pathList.paths[action.index].bShowPreview;
+                        reducedState = Object.assign({}, state);
+                    } break;
+                case 'paths_swap':
+                    {
+                        if (action.index > 0)
+                        {
+                            var tempPath = state.pathList.paths[action.index];
+                            state.pathList.paths[action.index] = state.pathList.paths[action.index - 1];
+                            state.pathList.paths[action.index - 1] = tempPath;
+                            reducedState = Object.assign({}, state); 
+                        }
+                    } break;
+                case 'script_new_cmd':
+                    {
+                        var script = state.scriptList.scripts[state.script.index];
+                        script.cmds.push(["*"]);
+                        var newState = Object.assign({}, state);
+                        reducedState = newState;
+                    } break;
+                case 'script_open_cmd':
+                    {
+                        var newState = Object.assign({}, state);
+                        newState.cmd.index = action.index;
+                        reducedState = newState;
+                    } break;
+                case 'script_del_cmd':
+                    {
+                        var script = state.scriptList.scripts[state.script.index];
+                        script.cmds.splice(action.index, 1);
+                        var newState = Object.assign({}, state);
+                        reducedState = newState;
+                    } break;
+                case 'script_dup_cmd':
+                    {
+                        var script = state.scriptList.scripts[state.script.index];
+                        var dupCmd = [];
+                        for (var i = 0; i < script.cmds[action.index].length; i++)
+                            dupCmd.push(script.cmds[action.index][i]);
+                        script.cmds.splice(action.index, 0, dupCmd);
+                        var newState = Object.assign({}, state); 
+                        reducedState = newState;
+                    } break;
+                case 'script_swap_cmd': 
+                    {
+                        if (action.index > 0)
+                        {
+                            var script = state.scriptList.scripts[state.script.index];
+                            var tempCmd = script.cmds[action.index];
+                            script.cmds[action.index] = script.cmds[action.index - 1];
+                            script.cmds[action.index - 1] = tempCmd;
+                            reducedState = Object.assign({}, state); 
+                        }
+                    } break;
+                case 'cmd_change_type':
+                    {
+                        var script = state.scriptList.scripts[state.script.index];
+                        var terms = script.cmds[state.cmd.index];
+                        terms[0] = action.t;
+                        var newState = Object.assign({}, state);
+                        reducedState = newState;
+                    } break;
+                case 'cmd_new_value':
+                    {
+                        var script = state.scriptList.scripts[state.script.index];
+                        var terms = script.cmds[state.cmd.index];
+                        terms.push("0");
+                        var newState = Object.assign({}, state);
+                        reducedState = newState;
+                    } break;
+                case 'cmd_del_value':
+                    {
+                        var script = state.scriptList.scripts[state.script.index];
+                        var terms = script.cmds[state.cmd.index];
+                        terms.splice(action.index, 1);
+                        var newState = Object.assign({}, state);
+                        reducedState = newState;
+                    } break;
+                case 'cmd_dup_value':
+                    {
+                        var script = state.scriptList.scripts[state.script.index];
+                        var terms = script.cmds[state.cmd.index];
+                        terms.splice(action.index, 0, terms[action.index]);
+                        var newState = Object.assign({}, state);
+                        reducedState = newState;
+                    } break;
+                case 'cmd_upd_value':
+                    {
+                        var script = state.scriptList.scripts[state.script.index];
+                        var terms = script.cmds[state.cmd.index];
+                        terms[action.index] = action.value;
+                        var newState = Object.assign({}, state);
+                        reducedState = newState;
+                    } break;          
+                case 'path_upd_point':
+                    {
+                        var points = state.pathList.paths[state.path.index].points;
+                        points[action.index].x = action.x;
+                        points[action.index].y = action.y;
+                        if (action.bClearPick)
+                            state.path.nPickForMove = -1;
+                        reducedState = Object.assign({}, state);
+                    } break;
+                case 'path_upd_delta':
+                    {
+                        var points = state.pathList.paths[state.path.index].points;
+                        points[action.index].xd = action.xd;
+                        points[action.index].yd = action.yd;
+                        if (action.bClearPick)
+                            state.path.nPickForDelta = -1;
+                        reducedState = Object.assign({}, state);
+                    } break;
+                case 'path_add_point':  
+                    {
+                        var points = state.pathList.paths[state.path.index].points;
+                        points.push({x:action.x, y:action.y, xd:action.xd, yd:action.yd});
+                        reducedState = Object.assign({}, state);
+                    } break;
+                case 'path_upd_picks':
+                    {
+                        state.path.nPickForMove = action.move;
+                        state.path.nPickForDelta = action.delta;
+                        reducedState = Object.assign({}, state);
+                    } break;
+                case 'path_del_point':
+                    {
+                        var points = state.pathList.paths[state.path.index].points;
+                        points.splice(action.index, 1);
+                        reducedState = Object.assign({}, state);
+                    } break;
+                case 'path_dup_point':
+                    {
+                        var points = state.pathList.paths[state.path.index].points;
+                        var newPoint = {x:points[action.index].x + action.delta, y:points[action.index].y + action.delta, xd:points[action.index].xd, yd:points[action.index].yd};
+                        if (action.index == points.length - 1)
+                            points.push(newPoint);
+                        else
+                            points.splice(action.index + 1, 0, newPoint);
+                        reducedState = Object.assign({}, state);
+                    } break;
+                case 'path_upd_showPoints':
+                    {
+                        state.path.bShowPoints = !state.path.bShowPoints;
+                        reducedState = Object.assign({}, state);
+                    } break;
+                case 'path_upd_scale':
+                    {
+                        state.path.nScale = action.value;
+                        reducedState = Object.assign({}, state);
+                    } break;
+                case 'path_upd_selDist':
+                    {
+                        state.path.CLOSE_DIST_SQR = action.value;
+                        reducedState = Object.assign({}, state);
+                    } break;
+                case 'path_start_drag':
+                    {
+                        state.path.bIsDragging = true;
+                        state.path.LastDragPoint = [action.x, action.y];
+                        reducedState = Object.assign({}, state);
+                    } break;
+                case 'path_stop_drag':
+                    {
+                        state.path.bIsDragging = false;
+                        reducedState = Object.assign({}, state);
+                    } break;
+                case 'path_upd_drag':
+                    {
+                        state.path.drag[0] += action.x - state.path.LastDragPoint[0];
+                        state.path.drag[1] += action.y - state.path.LastDragPoint[1];
+                        state.path.LastDragPoint = [action.x, action.y];
+                        reducedState = Object.assign({}, state);
+                    } break;
+                default:
+                    throw new Error();
+            }
+
+            // File change actions
+            switch (action.type) { 
+                case 'file_new':
+                case 'file_import':
+                case 'scripts_new':
+                case 'scripts_rename': 
+                case 'scripts_del': 
+                case 'scripts_dup':
+                case 'scripts_swap':
+                case 'paths_new':
+                case 'paths_rename': 
+                case 'paths_del': 
+                case 'paths_dup': 
+                case 'paths_swap':
+                case 'script_new_cmd':
+                case 'script_del_cmd':
+                case 'script_dup_cmd':
+                case 'script_swap_cmd':
+                case 'cmd_change_type':
+                case 'cmd_new_value':
+                case 'cmd_del_value':
+                case 'cmd_dup_value':
+                case 'cmd_upd_value':
+                case 'path_upd_point':
+                case 'path_upd_delta':
+                case 'path_add_point':  
+                case 'path_upd_picks':
+                case 'path_del_point':
+                case 'path_dup_point':
+                    reducedState.file.hasUnsavedChanges = true;
+                    break;
+            }
+            return reducedState;
+        }
+    </script>
+
+    <script type="text/babel">
+        function FAIcons(ctype)
+        {
+            switch (ctype)
+            {
+                case "*": return <i className="fas fa-asterisk"></i>;
+                case 'b': return <i className="fas fa-align-justify"></i>;
+                case 'c': return <i className="fas fa-recycle"></i>;
+                case 'r': return <i className="fas fa-redo-alt"></i>;
+                case 'sa': return <i className="fab fa-acquisitions-incorporated"></i>;
+                case 'st': return <i className="far fa-image"></i>;
+                case 'sp': return <i className="fas fa-vector-square"></i>;
+                case 'spos': return <i className="fas fa-map-marker-alt"></i>;
+                case 'str': return <i className="fas fa-crosshairs"></i>;
+                case 'sf': return <i className="fas fa-walking"></i>;
+                case 'sr': return <i className="far fa-registered"></i>;
+                case 'srabc': return <i className="fas fa-registered"></i>;
+                case 'cl': return <i className="fas fa-door-closed"></i>;
+                case 'op': return <i className="fas fa-door-open"></i>;
+                case '//': return <i className="far fa-comment"></i>;
+            }
+            return "";
+        }
+    </script>
+
+    <script type="text/babel">
+        function ScriptListComponent(props) {
+            var funcNew = function() {
+                var scriptName = prompt("New script name?", "");
+                if (scriptName != null &&
+                    props.state.scriptList.scripts.find((e)=>e.name==scriptName) === undefined)
+                    props.parentDispatch({type: 'scripts_new', sn: scriptName});
+                else
+                    alert("Operation canceled, or script name already exist");
+            };
+            var funcRename = function(i) {
+                var scriptNewName = prompt("New script name?", props.state.scriptList.scripts[i].name);
+                if (scriptNewName != null &&
+                    props.state.scriptList.scripts.find((e)=>e.name==scriptNewName) === undefined)
+                    props.parentDispatch({type: 'scripts_rename', sn: scriptNewName, index:i});
+                else
+                    alert("Operation canceled, or script name already exist");
+            };
+            var funcDel = function(i) {
+                if (confirm('Are you sure about deleting "' + props.state.scriptList.scripts[i].name + '" script?'))
+                    props.parentDispatch({type: 'scripts_del', index:i});
+            };
+            var funcDup = function(i) {
+                var scriptNewName = prompt("New script name?", props.state.scriptList.scripts[i].name);
+                if (scriptNewName != null &&
+                    props.state.scriptList.scripts.find((e)=>e.name==scriptNewName) === undefined)
+                    props.parentDispatch({type: 'scripts_dup', sn: scriptNewName, index:i});
+                else
+                    alert("Operation canceled, or script name already exist");
+            };
+            var funcHighlightScriptName = function(i, name){
+                return (props.state.script.index == i ?
+                    (<big className="toc_width100"><u><span style={{backgroundColor:"yellow"}}>{name}</span></u></big>) :
+                    (<big className="toc_width100"><u>{name}</u></big>));
+            };
+            return (
+                <React.Fragment>
+                    <h2>Script List</h2>
+                    <br />
+                    {props.state.scriptList.scripts.map((script,i)=>(
+                        <div key={i}>
+                            <i className="fas fa-scroll"></i> {funcHighlightScriptName(i, script.name)} <small className="toc_width50">Cmds:{script.cmds.length}</small>
+                            <button onClick={() => props.parentDispatch({type: 'scripts_open', index:i})}>Open</button>
+                            <button onClick={() => funcRename(i)}>Rename</button>
+                            <button onClick={() => funcDel(i)}>Delete</button>
+                            <button onClick={() => funcDup(i)}>Duplicate</button>
+                            <button onClick={() => props.parentDispatch({type: 'scripts_swap', index:i})}>Swap</button>
+                        </div>))}
+                    <br />
+                    <button onClick={() => funcNew()}>New Script</button>
+                </React.Fragment>
+            );
+        }
+    </script>
+
+    <script type="text/babel">
+        function ScriptComponent(props) {
+            var script = props.state.script.index > props.state.scriptList.scripts.length ? null : props.state.scriptList.scripts[props.state.script.index];
+            var funcDel = function(i) {
+                if (confirm('Are you sure about deleting the command?'))
+                    props.parentDispatch({type: 'script_del_cmd', index:i});
+            };
+            var funcHighlightCmd = function(i){
+                return (props.state.cmd.index == i ?
+                    {backgroundColor:"yellow"} :
+                    {});
+            };
+            var ScriptCommandList = script == null ? "" :
+                (<React.Fragment>
+                    {script.cmds.map((terms,i)=>
+                        (<div key={i}>
+                             <big style={funcHighlightCmd(i)}>
+                                <span className="toc_width25">{i}: </span>
+                                <span className="toc_width50" style={{textAlign:"center"}}>{FAIcons(terms[0])} </span>
+                                <button className="toc_width300" style={terms[0] != "//" ? {} : {color:"green"}} onClick={() => props.parentDispatch({type: 'script_open_cmd', index:i})}>
+                                    {terms[0] != "//" ? terms[0].toUpperCase() : terms[1].split('_').join(' ')}</button>
+                                <button onClick={() => funcDel(i)}>Delete</button>
+                                <button onClick={() => props.parentDispatch({type: 'script_dup_cmd', index:i})}>Duplicate</button>
+                                <button onClick={() => props.parentDispatch({type: 'script_swap_cmd', index:i})}>Swap</button>
+                            </big>
+                        </div>)
+                    )}
+                </React.Fragment>);
+            return (
+                <React.Fragment>
+                    <h2>Script "{script.name}" (Index: {props.state.script.index})</h2>
+                    <br />
+                    {ScriptCommandList}
+                    <br />
+                    <button onClick={() => props.parentDispatch({type: 'script_new_cmd'})}>New Cmd</button>
+                </React.Fragment>
+            );
+        }
+    </script>
+
+    <script type="text/babel">
+        function CmdComponent(props) {
+            var script = props.state.script.index > props.state.scriptList.scripts.length ? null : props.state.scriptList.scripts[props.state.script.index];
+            var terms = script == null || props.state.cmd.index > script.cmds.length ? null : script.cmds[props.state.cmd.index];
+            if (terms != null)
+            {
+                var funcTermHelperHeader = function()
+                {
+                    switch (terms[0])
+                    {
+                        case '*': return ["Visual Mark of Position"];
+                        case 'b': return ["Include Block", "Block Name"];
+                        case 'c': {
+                                var Names = ["Cycle Block", "Delay MS", "Block Name", "Block Name"];
+                                while (Names.length < terms.length)
+                                    Names.push("Block Name");
+                                return Names;
+                            }
+                        case 'r': return ["Repeast Last Command", "Repeat Number of Times"];
+                        case 'sa': {
+                                var Names = ["Set All", "Path Name", "Mirror Flag", "Scale X", "Scale Max Radius X", "Scale Y", "Scale Max Radius Y", "Position X", "Position Y", "Position Z",
+                                    "Target X", "Target Y", "Target Z", "Right X", "Right Y", "Right Z", "Texture"];
+                                while (Names.length < terms.length)
+                                    { Names.push("Point Index"); Names.push("Texture"); }
+                                return Names;
+                            }
+                        case 'st': {
+                                var Names = ["Set Texture", "Texture"];
+                                while (Names.length < terms.length)
+                                    { Names.push("Point Index"); Names.push("Texture"); }
+                                return Names;
+                            }
+                        case 'sp': return ["Set Path", "Path Name", "Mirror Flag", "Scale X", "Scale Max Radius X", "Scale Y", "Scale Max Radius Y"];
+                        case 'spos': return ["Set Position", "Position X", "Position Y", "Position Z"];
+                        case 'str': return ["Set Target and Right", "Target X", "Target Y", "Target Z", "Right X", "Right Y", "Right Z"];
+                        case 'sf': return ["Step Forward", "Distance"];
+                        case 'sr': return ["Step Rotate AB", "Distance", "A Angle (Degrees)", "B Angle (Degrees)"];
+                        case 'srabc': return ["Step Rotate ABC", "Distance", "A Angle (Degrees)", "B Angle (Degrees)", "C Angle (Degrees)"];
+                        case 'cl': return ["Close"];
+                        case 'op': return ["Open"];
+                        case '//': return ["Comment", "Description"];
+                    }
+                    return ["Unknown"];
+                }
+                var funcGenTerm = function(i){
+                    if (i == 0)
+                        return "";
+                    else
+                        return (
+                            <React.Fragment key={i}>
+                                {i < funcTermHelperHeader().length ? <span style={{display:"inline-block",width:"200px"}}>{funcTermHelperHeader()[i]}</span> : <span style={{color:"red",display:"inline-block",width:"200px"}}>Extra Parameter (Delete)</span>}
+                                <input className="toc_width300" value={terms[i]} onChange={(e) => props.parentDispatch({type: 'cmd_upd_value', index:i, value:e.target.value})}/>
+                                <button onClick={() => props.parentDispatch({type: 'cmd_del_value', index:i})}>Delete</button>
+                                <button onClick={() => props.parentDispatch({type: 'cmd_dup_value', index:i})}>Duplicate</button>
+                                <br/>
+                            </React.Fragment>);
+                }
+                return (
+                    <React.Fragment>
+                        <h2>{FAIcons(terms[0])} {funcTermHelperHeader()[0]} Command (code: "{terms[0]}")</h2>
+                        <br />
+                        <button onClick={() => props.parentDispatch({type: 'cmd_change_type', t:"*"})}>{FAIcons("*")}</button>
+                        <button onClick={() => props.parentDispatch({type: 'cmd_change_type', t:"b"})}>{FAIcons("b")} Include Block</button>
+                        <button onClick={() => props.parentDispatch({type: 'cmd_change_type', t:"c"})}>{FAIcons("c")} Cycle Block</button>
+                        <button onClick={() => props.parentDispatch({type: 'cmd_change_type', t:"r"})}>{FAIcons("r")} Repeat Last Command</button>
+                        <button onClick={() => props.parentDispatch({type: 'cmd_change_type', t:"sa"})}>{FAIcons("sa")} Set All</button>
+                        <button onClick={() => props.parentDispatch({type: 'cmd_change_type', t:"st"})}>{FAIcons("st")} Set Texture</button>
+                        <button onClick={() => props.parentDispatch({type: 'cmd_change_type', t:"sp"})}>{FAIcons("sp")} Set Path</button>
+                        <button onClick={() => props.parentDispatch({type: 'cmd_change_type', t:"spos"})}>{FAIcons("spos")} Set Position</button>
+                        <button onClick={() => props.parentDispatch({type: 'cmd_change_type', t:"str"})}>{FAIcons("str")} Set Target and Right</button>
+                        <button onClick={() => props.parentDispatch({type: 'cmd_change_type', t:"sf"})}>{FAIcons("sf")} Step Forward</button>
+                        <button onClick={() => props.parentDispatch({type: 'cmd_change_type', t:"sr"})}>{FAIcons("sr")} Step Rotate AB</button>
+                        <button onClick={() => props.parentDispatch({type: 'cmd_change_type', t:"srabc"})}>{FAIcons("srabc")} Step Rotate ABC</button>
+                        <button onClick={() => props.parentDispatch({type: 'cmd_change_type', t:"cl"})}>{FAIcons("cl")} Close</button>
+                        <button onClick={() => props.parentDispatch({type: 'cmd_change_type', t:"op"})}>{FAIcons("op")} Open</button>
+                        <button onClick={() => props.parentDispatch({type: 'cmd_change_type', t:"//"})}>{FAIcons("//")}</button>
+                        <br /><br />
+                        <button onClick={() => props.parentDispatch({type: 'cmd_new_value'})}>New Value</button>
+                        <br /><br />
+                        {terms.map((term, i)=>funcGenTerm(i))}
+                        {funcTermHelperHeader().length > terms.length ? <h2 style={{color:"red"}}>{funcTermHelperHeader().length - terms.length} Value(s) Missing..</h2> : <br/> }
+                    </React.Fragment>
+                );
+            }
+            else return (<h2>Select a command</h2>);
+        }
+    </script>
+
+    <script type="text/babel">
+        function PathListComponent(props) {
+            var funcNew = function() {
+                var pathName = prompt("New path name?", "");
+                if (pathName != null &&
+                    props.state.pathList.paths.find((e)=>e.name==pathName) === undefined)
+                    props.parentDispatch({type: 'paths_new', pn: pathName});
+                else
+                    alert("Operation canceled, or path name already exist");
+            };
+            var funcRename = function(i) {
+                var pathNewName = prompt("New path name?", props.state.pathList.paths[i].name);
+                if (pathNewName != null &&
+                    props.state.pathList.paths.find((e)=>e.name==pathNewName) === undefined)
+                    props.parentDispatch({type: 'paths_rename', pn: pathNewName, index:i});
+                else
+                    alert("Operation canceled, or path name already exist");
+            };
+            var funcDel = function(i) {
+                if (confirm('Are you sure about deleting "' + props.state.pathList.paths[i].name + '" path?'))
+                    props.parentDispatch({type: 'paths_del', index:i});
+            };
+            var funcDup = function(i) {
+                var pathNewName = prompt("New path name?", props.state.pathList.paths[i].name);
+                if (pathNewName != null &&
+                    props.state.pathList.paths.find((e)=>e.name==pathNewName) === undefined)
+                    props.parentDispatch({type: 'paths_dup', pn: pathNewName, index:i});
+                else
+                    alert("Operation canceled, or path name already exist");
+            };
+            var funcHighlightPathName = function(i, name){
+                return (props.state.path.index == i ?
+                    (<big className="toc_width100"><u><span style={{backgroundColor:"yellow"}}>{name}</span></u></big>) :
+                    (<big className="toc_width100"><u>{name}</u></big>));
+            };
+            return (
+                <React.Fragment>
+                    <h2>Path List</h2>
+                    <br />
+                    {props.state.pathList.paths.map((path,i)=>(
+                        <div key={i}>
+                            <i className="fas fa-vector-square"></i> {funcHighlightPathName(i, path.name)} <small className="toc_width50">Points:{path.points.length}</small>
+                            <input type="checkbox" checked={path.bShowPreview} onChange={(e)=>props.parentDispatch({type: 'paths_preview', index:i})}/>
+                            <button onClick={() => props.parentDispatch({type: 'paths_open', index:i})}>Open</button>
+                            <button onClick={() => funcRename(i)}>Rename</button>
+                            <button onClick={() => funcDel(i)}>Delete</button>
+                            <button onClick={() => funcDup(i)}>Duplicate</button>
+                            <button onClick={() => props.parentDispatch({type: 'paths_swap', index:i})}>Swap</button>
+                        </div>))}
+                    <br />
+                    <button onClick={() => funcNew()}>New Path</button>
+                </React.Fragment>
+            );
+        }
+    </script>
+
+    <script type="text/babel">
+        function PathComponent(props) {
+            var path = props.state.path;
+            var pathData = path.index < props.state.pathList.paths.length ? props.state.pathList.paths[path.index] : null;
+            var points = pathData != null ? pathData.points : null;
+            
+            var funcWorldToCanvas = function(wx, wy) {
+                return [(wx * path.nScale) + path.CANVAS_SIDE*0.5 + path.drag[0], path.CANVAS_SIDE - (wy * path.nScale) - path.CANVAS_SIDE*0.5 + path.drag[1]];
+            }
+            var funcCanvasToWorld = function(cx, cy) {
+                return [((cx - path.drag[0]) - path.CANVAS_SIDE*0.5)/path.nScale, ((cy - path.drag[1]) - path.CANVAS_SIDE*0.5)/-path.nScale];
+            }
+            var funcMoveTo = function(ctx, x, y) {
+                var TransP = funcWorldToCanvas(x, y);
+                ctx.moveTo(TransP[0], TransP[1]);
+            }
+            var funcLineTo = function(ctx, x, y) {
+                var TransP = funcWorldToCanvas(x, y);
+                ctx.lineTo(TransP[0], TransP[1]);
+            }
+            var funcCircle = function(ctx, x, y, r) {
+                var TransP = funcWorldToCanvas(x, y);
+                ctx.beginPath();
+                ctx.arc(TransP[0], TransP[1], r, 0, 2 * Math.PI);
+            }
+            var funcText = function(ctx, str, x, y) {
+                var TransP = funcWorldToCanvas(x, y);
+                ctx.fillText(str, TransP[0], TransP[1]);
+            }
+            var funcDrawGrid = function(ctx) {
+                ctx.clearRect(0, 0, path.CANVAS_SIDE, path.CANVAS_SIDE);
+                ctx.strokeStyle = "#AFAFAF"; ctx.beginPath(); 
+                if (path.nScale >= 10)
+                {
+                    var wx = -1000;
+                    var cx = (wx * path.nScale) + path.CANVAS_SIDE*0.5 + path.drag[0];
+                    while (cx < 0) cx += path.nScale;
+                    for (; cx < path.CANVAS_SIDE; cx += path.nScale)
+                        { ctx.moveTo(cx, 0); ctx.lineTo(cx, path.CANVAS_SIDE); ctx.stroke(); }
+                    
+                    var wy = -1000;
+                    var cy = path.CANVAS_SIDE - (wy * path.nScale) - path.CANVAS_SIDE*0.5 + path.drag[1];
+                    while (cy > path.CANVAS_SIDE) cy -= path.nScale;
+                    for (; cy > 0; cy -= path.nScale)
+                        { ctx.moveTo(0, cy); ctx.lineTo(path.CANVAS_SIDE, cy); ctx.stroke(); }
+                }
+                ctx.strokeStyle = "#FF0000"; ctx.beginPath(); 
+                ctx.moveTo(path.CANVAS_SIDE*0.5 + path.drag[0], 0); ctx.lineTo(path.CANVAS_SIDE*0.5 + path.drag[0], path.CANVAS_SIDE); ctx.stroke();
+                ctx.moveTo(0, path.CANVAS_SIDE*0.5 + path.drag[1]); ctx.lineTo(path.CANVAS_SIDE, path.CANVAS_SIDE*0.5 + path.drag[1]); ctx.stroke();
+            }
+            var funcDrawPreviews = function(ctx) {   
+                ctx.strokeStyle = "#00AF00"; 
+                for (var i = 0; i < props.state.pathList.paths.length; i++)
+                {
+                    var PreviewPath = props.state.pathList.paths[i];
+                    if (PreviewPath.bShowPreview)
+                    {
+                        ctx.beginPath();
+                        for (var j = 0; j < PreviewPath.points.length; j++)
+                        {
+                            funcMoveTo(ctx, PreviewPath.points[j].x + PreviewPath.points[j].xd, PreviewPath.points[j].y + PreviewPath.points[j].yd);
+                            funcLineTo(ctx, PreviewPath.points[j].x, PreviewPath.points[j].y);
+                            ctx.stroke();
+                            if (j > 0)
+                            {
+                                funcMoveTo(ctx, PreviewPath.points[j-1].x, PreviewPath.points[j-1].y);
+                                funcLineTo(ctx, PreviewPath.points[j].x, PreviewPath.points[j].y);
+                                ctx.stroke();
+                                funcMoveTo(ctx, PreviewPath.points[j-1].x + PreviewPath.points[j-1].xd, PreviewPath.points[j-1].y + PreviewPath.points[j-1].yd);
+                                funcLineTo(ctx, PreviewPath.points[j].x + PreviewPath.points[j].xd, PreviewPath.points[j].y + PreviewPath.points[j].yd);
+                                ctx.stroke();
+                            }
+                        }
+                    }
+                }
+            };  
+            var funcDrawPoints = function() {   
+                if (points == null) return;
+
+                var board = document.getElementById("Board");
+                var ctx = board.getContext("2d");
+                funcDrawGrid(ctx);
+                funcDrawPreviews(ctx);
+                ctx.strokeStyle = "#000000"; ctx.beginPath(); 
+                    
+                if (points.length > 0)
+                {
+                    for (var i = 0; i < points.length; i++)
+                    {
+                        if (i == 0 || i == points.length - 1)
+                        {
+                            funcMoveTo(ctx, points[i].x + points[i].xd, points[i].y + points[i].yd);
+                            funcLineTo(ctx, points[i].x, points[i].y);
+                            ctx.stroke();
+                        }
+                        if (i > 0)
+                        {
+                            funcMoveTo(ctx, points[i-1].x, points[i-1].y);
+                            funcLineTo(ctx, points[i].x, points[i].y);
+                            ctx.stroke();
+                            funcMoveTo(ctx, points[i-1].x + points[i-1].xd, points[i-1].y + points[i-1].yd);
+                            funcLineTo(ctx, points[i].x + points[i].xd, points[i].y + points[i].yd);
+                            ctx.stroke();
+                        }
+                        if (path.bShowPoints)
+                        {
+                            ctx.font = "20px Georgia";
+                            funcText(ctx, i, points[i].x + path.CAPTION_OFFSET, points[i].y - path.CAPTION_OFFSET);
+                            funcCircle(ctx, points[i].x, points[i].y, path.POINT_SIDE);
+                            ctx.stroke();
+                            funcCircle(ctx, points[i].x + points[i].xd, points[i].y + points[i].yd, path.POINT_SIDE);
+                            ctx.stroke();
+                        }
+                    }
+                }
+            };  
+            var funcOnBoardClick = function(e) {
+                if (e.button == 1) { // middle mouse click
+                    if (!path.bIsDragging)
+                        props.parentDispatch({type: 'path_start_drag', x:e.clientX, y:e.clientY});
+                    else
+                        props.parentDispatch({type: 'path_stop_drag'});
+                    return;
+                }
+
+                var board = document.getElementById("Board");
+                var boardRect = board.getBoundingClientRect();
+                var TransP = funcCanvasToWorld(e.clientX - boardRect.left, e.clientY - boardRect.top);
+                var offsetX = TransP[0], offsetY = TransP[1];
+                if (path.nPickForMove != -1)
+                    props.parentDispatch({type: 'path_upd_point', index:path.nPickForMove, 
+                        x:!e.shiftKey ? Math.round(offsetX) : Round2(offsetX), 
+                        y:!e.shiftKey ? Math.round(offsetY) : Round2(offsetY), bClearPick:true});
+                else if (path.nPickForDelta != -1)
+                {
+                    var newPoint = [offsetX - points[path.nPickForDelta].x, offsetY - points[path.nPickForDelta].y];
+                    props.parentDispatch({type: 'path_upd_delta', index:path.nPickForDelta, 
+                        xd:!e.shiftKey ? Math.round(newPoint[0]) : Round2(newPoint[0]), 
+                        yd:!e.shiftKey ? Math.round(newPoint[1]) : Round2(newPoint[1]), bClearPick:true});
+                }
+                else
+                {   // Is selecting?
+                    var nMinDistSqr = 9999999999, nMinDistIndex;
+                    if (points.length > 0)
+                    {
+                        for (var i = 0; i < points.length; i++)
+                        {
+                            var nDistSqr = (offsetX - points[i].x) * (offsetX - points[i].x) + 
+                                (offsetY - points[i].y) * (offsetY - points[i].y);
+                            if (nDistSqr < nMinDistSqr)
+                            {
+                                nMinDistSqr = nDistSqr;
+                                nMinDistIndex = i;
+                            }
+                            
+                            nDistSqr = (offsetX - (points[i].x + points[i].xd)) * (offsetX - (points[i].x + points[i].xd)) + 
+                                (offsetY - (points[i].y + points[i].yd)) * (offsetY - (points[i].y + points[i].yd));
+                            if (nDistSqr < nMinDistSqr)
+                            {
+                                nMinDistSqr = nDistSqr;
+                                nMinDistIndex = i == 0 ? -9999999 : -i;
+                            }
+                        }
+                    }
+                    if (points.length > 0 && nMinDistSqr < path.CLOSE_DIST_SQR)
+                    {
+                        if (nMinDistIndex >= 0)
+                            props.parentDispatch({type: 'path_upd_picks', move:nMinDistIndex, delta:-1});
+                        else
+                            props.parentDispatch({type: 'path_upd_picks', move:-1, delta:nMinDistIndex == -9999999 ? 0 : -nMinDistIndex});
+                    }
+                    else // not selecting
+                        props.parentDispatch({type: 'path_add_point', x:Round2(offsetX), y:Round2(offsetY), xd:-3, yd:0});
+                }
+            };
+            var funcOnBoardMove = function(e) {
+                if (path.bIsDragging) // middle mouse dragging
+                {
+                    props.parentDispatch({type: 'path_upd_drag', x:e.clientX, y:e.clientY});
+                    return;
+                }
+
+                var board = document.getElementById("Board");
+                var boardRect = board.getBoundingClientRect();
+                var TransP = funcCanvasToWorld(e.clientX - boardRect.left, e.clientY - boardRect.top);
+                var offsetX = TransP[0], offsetY = TransP[1];
+                if (path.nPickForMove != -1)
+                    props.parentDispatch({type: 'path_upd_point', index:path.nPickForMove, x:Round2(offsetX), y:Round2(offsetY), bClearPick:false});
+                else if (path.nPickForDelta != -1)
+                    props.parentDispatch({type: 'path_upd_delta', index:path.nPickForDelta, xd:Round2(offsetX - points[path.nPickForDelta].x), yd:Round2(offsetY - points[path.nPickForDelta].y), bClearPick:false});
+            };    
+            var funcOnBoardWheel = function(e) {
+                console.log(e);
+                props.parentDispatch({type: 'path_upd_scale', value:path.nScale + (e.deltaY < 0 ? 1 : -1)});
+            };
+            React.useEffect(() => { funcDrawPoints(); });
+            var Valid = points == null ? "" :
+                (<React.Fragment>
+                    <table><tbody><tr><td valign="top">
+                        Scale: <input className="toc_width50" value={path.nScale} onChange={(e)=>props.parentDispatch({type: 'path_upd_scale', value:parseFloat(e.target.value)})}/> &nbsp;&nbsp;&nbsp;
+                        Selection Dist: <input className="toc_width50" value={Math.sqrt(path.CLOSE_DIST_SQR)} onChange={(e)=>props.parentDispatch({type: 'path_upd_selDist', value:parseFloat(e.target.value) * parseFloat(e.target.value)})}/> &nbsp;&nbsp;&nbsp;
+                        Show Points: <input type="checkbox" checked={path.bShowPoints} onChange={(e)=>props.parentDispatch({type: 'path_upd_showPoints'})}/>
+                        <br />
+                        <canvas id="Board" width={path.CANVAS_SIDE} height={path.CANVAS_SIDE} style={{backgroundColor:"lightgray"}} onClick={(e)=>funcOnBoardClick(e)} onMouseMove={(e)=>funcOnBoardMove(e)} onWheel={(e)=>funcOnBoardWheel(e)}></canvas>
+                    </td><td valign="top">
+                        {points.map((point, i)=>
+                            (<React.Fragment key={i}>
+                                {i}: &nbsp;
+                                <input className="toc_width50" value={point.x} onChange={(e)=>props.parentDispatch({type: 'path_upd_point', index:i, x:parseFloat(e.target.value), y:point.y, bClearPick:false})}/>
+                                <input className="toc_width50" value={point.y} onChange={(e)=>props.parentDispatch({type: 'path_upd_point', index:i, x:point.x, y:parseFloat(e.target.value), bClearPick:false})}/>
+                                <input className="toc_width50" value={point.xd} onChange={(e)=>props.parentDispatch({type: 'path_upd_delta', index:i, xd:parseFloat(e.target.value), yd:point.yd, bClearPick:false})}/>
+                                <input className="toc_width50" value={point.yd} onChange={(e)=>props.parentDispatch({type: 'path_upd_delta', index:i, xd:point.xd, yd:parseFloat(e.target.value), bClearPick:false})}/>
+                                <button onClick={()=>props.parentDispatch({type: 'path_upd_picks', move:i, delta:-1})}>Move</button>
+                                <button onClick={()=>props.parentDispatch({type: 'path_upd_picks', move:-1, delta:i})}>Move Delta</button>
+                                <button onClick={()=>props.parentDispatch({type: 'path_del_point', index:i})}>Delete</button>
+                                <button onClick={()=>props.parentDispatch({type: 'path_dup_point', index:i, delta:2})}>Duplicate</button>
+                                <button onClick={() =>props.parentDispatch({type: 'path_upd_point', index:i, x:0.1, y:point.y})}>.1</button>
+                                <button onClick={() =>props.parentDispatch({type: 'path_upd_delta', index:i, xd:-0.2, yd:point.yd})}>-.2</button>
+                                <br/>
+                            </React.Fragment>))}
+                    </td></tr></tbody></table>
+                </React.Fragment>);
+            return (
+                <React.Fragment>
+                    {Valid}
+                </React.Fragment>
+            );
+        }
+    </script>
+
+    <script type="text/babel">
+        function FileMenuComponent(props) {
+            var funcNew = function() {
+                if (!props.state.file.hasUnsavedChanges ||
+                    confirm("You have unsaved changes that will be lost"))
+                {
+                    var fileName = prompt("New name?", "something.trvobj");
+                    if (fileName != null)
+                    {
+                        fileName += (fileName.indexOf(".trvobj") == -1 ? ".trvobj" : "");
+                        fetch('/new.a?' + fileName)
+                        .then(function(response) {
+                            return response.text();
+                        })
+                        .then(function(text) {
+                            if (text == "EXISTS")
+                                console.log("Error: File [" + fileName + "] already exists!")
+                            else
+                                props.parentDispatch({type: 'file_new', fn: fileName})
+                        });
+                    }
+                }
+            };
+            var funcOpen = function() {
+                if (!props.state.file.hasUnsavedChanges ||
+                    confirm("You have unsaved changes that will be lost"))
+                {
+                    var fileName = prompt("Existing file name?", "something.trvobj");
+                    if (fileName != null)
+                    {
+                        fileName += (fileName.indexOf(".trvobj") == -1 ? ".trvobj" : "");
+                        fetch('/open.a?' + fileName)
+                        .then(function(response) {
+                            return response.text();
+                        })
+                        .then(function(text) {
+                            if (text == "NOT_FOUND")
+                                console.log("Error: File [" + fileName + "] doesn't exist!");
+                            else
+                                props.parentDispatch({type: 'file_open', fn: fileName, str:text})
+                        });
+                    }
+                }
+            };
+            var funcSave = function() {
+                if (props.state.file.fileName != "")
+                {
+                    return fetch('/save.a?' + props.state.file.fileName, {
+                        method: "POST",
+                        mode: "cors", 
+                        cache: "no-cache", 
+                        credentials: "same-origin", 
+                        headers: { "Content-Type": "text/plain" },
+                        redirect: "follow", 
+                        referrer: "no-referrer", 
+                        body: Serialize(props.state), 
+                    })
+                    .then(response => response.text())
+                    .then(function(text) {
+                        if (text == "SAVED")
+                            props.parentDispatch({type: 'file_save'})
+                        else
+                            alert('Error: Unable to save file');
+                    });
+
+                }
+                else
+                    alert('Please open or create a new file first');
+            };
+            var funcImport = function() {
+                if (props.state.file.fileName != "")
+                {
+                    var fileName = prompt("File name you wish to import?", "something.trvobj");
+                    if (fileName != null)
+                    {
+                        fileName += (fileName.indexOf(".trvobj") == -1 ? ".trvobj" : "");
+                        fetch('/import.a?' + fileName)
+                        .then(function(response) {
+                            return response.text();
+                        })
+                        .then(function(text) {
+                            if (text == "NOT_FOUND")
+                                console.log("Error: File [" + fileName + "] doesn't exist!");
+                            else
+                                props.parentDispatch({type: 'file_import', fn: fileName, str:text})
+                        });
+                    }
+                }
+                else
+                    alert('Please open or create a new file first');
+            };
+            return (
+                <React.Fragment>
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                    <button className="toc_width100" onClick={() => funcNew()}>New</button>
+                    <button className="toc_width100" onClick={() => funcOpen()}>Open</button>
+                    <button className="toc_width100" onClick={() => funcSave()}>Save</button>
+                    <button className="toc_width100" onClick={() => funcImport()}>Import</button>
+                </React.Fragment>
+            );
+        }
+    </script>
+
+    <!-- Example Component Home -->
+    <script type="text/babel">
+        function HomeComponent() {
+            const [state, dispatch] = React.useReducer(Reducer, iniState);
+            var Tab0 = state.file.fileName == "" ? "" : <ScriptListComponent state={state} parentDispatch={dispatch}/>;
+            var Tab1 = state.file.fileName == "" ? "" : (<table><tbody><tr><td 
+                                                            valign="top"><ScriptComponent state={state} parentDispatch={dispatch}/></td><td width="40"></td><td 
+                                                            valign="top"><CmdComponent state={state} parentDispatch={dispatch} /></td></tr></tbody></table>);
+            var Tab2 = state.file.fileName == "" ? "" : (<table><tbody><tr><td
+                                                            valign="top"><PathListComponent state={state} parentDispatch={dispatch}/></td><td width="40"></td><td
+                                                            valign="top"><PathComponent state={state} parentDispatch={dispatch}/></td></tr></tbody></table>);
+            var TabContent = state.home.tabIndex == 0 ? Tab0 :
+                            state.home.tabIndex == 1 ? Tab1 : Tab2;
+            return (
+                <React.Fragment>
+                    <h1 style={{display:"inline-block"}}>Trivial Object Editor ({state.file.fileName == "" ? "<none>" : state.file.fileName}{state.file.hasUnsavedChanges ? "*" : ""})</h1>
+                    <FileMenuComponent state={state} parentDispatch={dispatch} />
+                    <hr />
+                    <button onClick={() => dispatch({type: 'home_tab_activate', index:0})}>Scripts</button>
+                    <button onClick={() => dispatch({type: 'home_tab_activate', index:1})}>Selected Script</button>
+                    <button onClick={() => dispatch({type: 'home_tab_activate', index:2})}>Paths</button>
+                    <br />
+                    {TabContent}
+                </React.Fragment>
+            );
+        }
+    </script>
+    
+    <script type="text/babel">
+        function RouterComponent() {
+            return (
+                <ReactRouterDOM.BrowserRouter>
+                    <ReactRouterDOM.Route path="/index.html" exact component={HomeComponent} />
+                </ReactRouterDOM.BrowserRouter>
+            );
+        }
+    </script>
+</head>
+<body>
+    <div id="root"></div>
+    
+    <script type="text/babel">
+        ReactDOM.render(
+            <RouterComponent/>,
+            document.getElementById('root')
+        );
+    </script>
+</body>
+</html>
