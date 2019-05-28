@@ -1,0 +1,32 @@
+// This is for dynamically skip browser actions, unproven
+
+document.documentElement.addEventListener('touchmove', function (event) {
+    event.preventDefault();
+}, false);
+
+
+
+// This is to handle touch events
+
+(ontouchstart event)
+
+if (e.touches.length === 2) {
+    scaling = true;
+    pinchStart(e);
+}
+(ontouchmove event)
+
+if (scaling) {
+    pinchMove(e);
+}
+(ontouchend event)
+
+if (scaling) {
+    pinchEnd(e);
+    scaling = false;
+}
+To get the distance between the two fingers, use the hypot function:
+
+var dist = Math.hypot(
+    e.touches[0].pageX - e.touches[1].pageX,
+    e.touches[0].pageY - e.touches[1].pageY);
