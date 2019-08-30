@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script>
+
+        var EPSILON = 0.0000001;
+
+        function AbsDist(a_nA, a_nB)
+        {
+            return Math.Abs(a_nA - a_nB);
+        }
+
+        function IsEqual(a_nA, a_nB)
+        {
+            return AbsDist(a_nA, a_nB) < EPSILON;
+        }
+
+        function Sqr(a_n) 
+        {
+            return a_n * a_n;
+        }
+
+        function Vec2(a_nX, a_nY)
+        {
+            var self = this;
+
+            self.GetX = () => self.m_nX;
+            self.SetX = (a_nNewX) => { self.m_nX = a_nNewX; }
+            self.GetY = () => self.m_nY;
+            self.SetY = (a_nNewY) => { self.m_nY = a_nNewY; }
+            self.IsEqual(a_V) = () => IsEqual(self.m_nX, a_V.m_nX) && IsEqual(self.m_nY, a_V.m_nY);
+            self.AddX = (a_n) => { self.m_nX += a_n; }
+            self.AddY = (a_n) => { self.m_nY += a_n; }
+            self.ScaleX = (a_n) => { self.m_nX *= a_n; }
+            self.ScaleY = (a_n) => { self.m_nY *= a_n; }
+            self.Clone = () => { return new Vec2(self.m_nX, self.m_nY); }
+
+            self.m_nX = a_nX;
+            self.m_ny = a_nY;
+        }
+
+        function Line2(a_PFrom, a_PTo)
+        {
+            var self = this;
+
+            // Infinite Line
+
+            self.IsValid = () => !self.m_PFrom.IsEqual(self.m_PTo);
+
+            self.IsParallelWith = (a_L) => self.m_bYy == a_L.m_bYy && IsEqual(self.m_nM, a_L.m_nM);
+
+            self.InterceptWith = (a_L) => {
+                if (!self.IsParallelWith(a_L))
+                {
+                    var nIx, nIy;
+                    if (self.m_bYy) {
+                        if (a_L.m_bYy) {
+                            nIx = (a_L.m_nN - self.m_nN) / (self.m_nM - a_L.m_nM);
+                            nIy = self.m_nM * nIx + self.m_N;
+                        } else {
+                            nIy = (self.m_nM * a_L.m_nN + self.m_nN) / (1 - self.m_nM * a_L.m_nM);
+                            nIx = a_L.m_nM * nIy + a_L.m_N;
+                        }
+                    } else {
+                        if (a_L.m_bYy) {
+                            nIy = (a_L.m_nM * self.m_nN + a_L.m_nN) / (1 - self.m_nM * a_L.m_nM);
+                            nIx = self.m_nM * nIy + self.m_N;
+                        } else {
+                            nIy = (a_L.m_nN - self.m_nN) / (self.m_nM - a_L.m_nM);
+                            nIx = self.m_nM * nIy + self.m_N;
+                        }
+                    }
+                    return [nIx, nIy];
+                }
+                return null;
+            }
+
+            self.InterceptWithX = (a_nX) => {
+                if (self.m_bYy || !IsEqual(self.m_nM, 0.0))
+                {
+                    var nIy;
+                    if (self.m_bYy) 
+                        nIy = self.m_nM * a_nX + self.m_nN;
+                    else 
+                        nIy = (a_nX - self.m_nN) / self.m_nM;
+                    return [a_nX, nIy];
+                }
+                return null;
+            }
+
+            self.InterceptWithY = (a_nY) => {
+                if (!self.m_bYy || !IsEqual(self.m_nM, 0.0))
+                {
+                    var nIx;
+                    if (self.m_bYy)
+                        nIx = (a_nY - self.m_nN) / self.m_nM;
+                    else 
+                        nIx = self.m_nM * a_nY + self.m_N;
+                    return [nIx, a_nY];
+                }
+                return null;
+            }
+
+            // Ray
+
+            self.GetFrom = () => self.m_PFrom;
+            self.GetPos = () => self.m_PPos;
+            self.GetDir = () => self.m_VDir;
+
+            self.ComputeRay = () => {
+                self.ComputeSegment();
+                self.m_PPos = self.m_PFrom.Clone();
+            }
+
+            self.Advance = (a_nDist) => {
+                self.m_PPos.AddX(a_nDist * self.m_VDir.GetX());
+                self.m_PPos.AddY(a_nDist * self.m_VDir.GetY());
+            }
+
+            self.IsPointInRayRange = (a_P) => 
+                ((self.m_PTo.GetX() >= self.m_PFrom.GetX()) == (a_P.GetX() >= self.m_PFrom.GetX()) &&
+                ((self.m_PTo.GetY() >= self.m_PFrom.GetY()) == (a_P.GetY() >= self.m_PFrom.GetY());
+                
+
+            // Segment
+
+            self.GetTo = () => self.m_PTo;
+            self.GetLength = () => self.m_nLength;
+            self.GetInvLength = () => self.m_nInvLength;
+
+            self.ComputeSegment = () => {
+                self.m_nDx = self.m_PTo.GetX() - self.m_PFrom.GetX();
+                self.m_nDy = self.m_PTo.GetY() - self.m_PFrom.GetY();
+                self.m_nLength = Math.Sqrt(Sqr(self.m_nDx) + Sqr(self.m_nDy));
+                if (!IsEqual(self.m_nLength, 0.0)) {
+                    self.m_nInvLength = 1.0 / self.m_nLength;
+                    self.m_VDir = new Vec2(self.m_nDx * self.m_nInvLength, self.m_nDy * self.m_nInvLength);
+                }
+            }
+            
+            self.IsPointInSegmentRange = (a_P) => 
+                Math.Min(self.m_PFrom.GetX(), self.m_PTo.GetX()) <= a_P.GetX() && a_P.GetX() <= Math.Max(self.m_PFrom.GetX(), self.m_PTo.GetX()) &&
+                Math.Min(self.m_PFrom.GetY(), self.m_PTo.GetY()) <= a_P.GetY() && a_P.GetY() <= Math.Max(self.m_PFrom.GetY(), self.m_PTo.GetY());
+
+            self.m_PFrom = a_PFrom.Clone();
+            self.m_PTo = a_PTo.Clone();
+            if (self.IsValid()) {
+                var nDx = self.m_PTo.GetX() - self.m_PFrom.GetX();
+                var nDy = self.m_PTo.GetY() - self.m_PFrom.GetY();
+                self.m_bYy = Math.Abs(nDx) > Math.Abs(nDy);
+                if (self.m_bYy) { // y=mx+n
+                    self.m_nM = nDy/nDx;
+                    self.m_nN = self.m_PFrom.GetY() - self.m_nM * self.m_PFrom.GetX();
+                } else { // x=mx+n
+                    self.m_nM = nDx/nDy;
+                    self.m_nN = self.m_PFrom.GetX() - self.m_nM * self.m_PFrom.GetY();
+                }
+            }
+        }
+    </script>
+</head>
+<body>
+</body>
+</html>
